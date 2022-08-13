@@ -4,7 +4,7 @@
 
 This bot is based on Todoist Python SDK.
 It can be used to create tasks in Todoist, list them and delete them.
-Beside that it can also be used to enable reminders for those task that have date and time set in Todist (as todoist offers reminder only for Premium users).
+Beside that it can also be used to enable reminders for those task that have date and time set in Todoist (as todoist offers reminder only for Premium users).
 
 ### Requirements
 - Todoist [API](https://developer.todoist.com/rest/v1/) Key
@@ -29,6 +29,8 @@ ACCESS_ID = <telegram-user-ids> (who can use the bot)
 
 4.) Run `python bot.py`
 
+#### Note
+The reminder feature is coming soon.
 ---
 Author - me
 
