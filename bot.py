@@ -1,3 +1,6 @@
+from glob import escape
+import json
+from re import A
 import time
 from dotenv import load_dotenv
 load_dotenv()
@@ -33,7 +36,7 @@ async def start_bot(message: types.Message):
         if message.text.startswith('/start'):
             await message.reply(f'Hey, How are you doing <b>@{message.from_user.username}</b>?\n\nType /cmds to see all commands')
         elif message.text.startswith('/cmds'):
-            await message.reply('/start - Start the bot\n/cmds - Show commands\n\n/add - Add a task\n/del - Delete a task\n/list - List all umcompleted tasks\n/enablereminder - Set reminders for a task')
+            await message.reply('/start - Start the bot\n/cmds - Show commands\n\n/add - Add a task\n/del - Delete a task\n/list - List all umcompleted tasks\n/enablereminder - Set reminders for a task\n/getreminders - Get all reminders')
     else:
         await message.reply('You are not authorized to use this bot')
     
@@ -53,9 +56,13 @@ class TaskAdd(StatesGroup):
 class TaskDel(StatesGroup):
     task_id = State()
     
+# State for add task to reminder
+class Reminder(StatesGroup):
+    task_id = State()
+    
 # List of message_id which should be deleted after adding a task or deleting a task
 start_end_messageid = []
-@dp.message_handler(commands=['add','del','list','enablereminder'])
+@dp.message_handler(commands=['add','del','list','enablereminder','getreminders'])
 async def bot_cmd_handler(message: types.Message):
     if message.text.startswith('/add'):
         
@@ -78,7 +85,7 @@ async def bot_cmd_handler(message: types.Message):
         await message.reply('What is the project id of the task? (Use /list command to view it)')
         
     elif message.text.startswith('/list'):
-        tasks = await get_tasks()
+        tasks = await get_tasks("")
         final_tasks = ""
         
         for task in tasks:
@@ -90,20 +97,71 @@ async def bot_cmd_handler(message: types.Message):
 <b>Description: </b> {task.description}
 <b>Priority: </b> {define_priority(task.priority)}
 <b>Task URL: </b> {task.url}
-<b>Due date: </b> {task.due.date if task.due else ""}
+<b>Due date: </b> {task.due.datetime if task.due.datetime else task.due.date}
 <b>Task ID : </b> <code>{task.id}</code>
 ================="""
         await message.reply(final_tasks)
         
         
     elif message.text.startswith('/enablereminder'):
-        print("ENABLEREMINDER")
+        
+        await Reminder.task_id.set()
+        await message.reply('What is the task id of the task? (Use /list command to view it)')
+        
+        
+        
+        
+    elif message.text.startswith('/getreminders'):
+        user_reminders = await get_all_reminders(str(message.from_user.id))
+        if not user_reminders:
+            await message.reply('<b>You have no reminders!</b>')
+        else:
+            all_reminders = ""
+            num = 0
+            for title in user_reminders:
+                all_reminders += f"[{num+1}]: Remind <b>{title}</b> at <b>{user_reminders[title]}</b>\n\n"
+                num += 1
+            await message.reply(all_reminders)
+                
+        
+        
 
 
+############################################## ADD NEW REMINDER PROCESS FUNCTION ##############################################
+@dp.message_handler(state=Reminder.task_id)
+async def add_reminder(message: types.Message, state: FSMContext):
+    """
+    Process task  id for to add to reminder
+    """
+    if not message.text.startswith('/'):
+        try:
+            task_id = int(message.text)
+        except ValueError:
+            await message.reply('<b>Task ID should be a number</b>')
+            await state.finish()
+            return 
+        task_info = await get_tasks(task_id)
+        if not task_info:
+            await message.reply('<b>Task not found. Probably ID was invalid!</b>')
+        else:
+            content_title = task_info.content
+            due_date = task_info.due.datetime if task_info.due.datetime else ""
+            if not due_date:
+                await message.reply('<b>Task has no due date with time!</b>')
+                await state.finish()
+                return 
+            else:
+                dict = {"title":content_title,"date":due_date}
+                if await add_reminders(str(message.from_user.id),dict):
+                    await message.reply('<b>Reminder added!</b>')
+                else:
+                    await message.reply('<b>Something went wrong! Please try again later.</b>')
+                await state.finish()
 
+    await state.finish()
 ############################################## DELETE TASK PROCESS FUNCTIONS ##############################################
 @dp.message_handler(state=TaskDel.task_id)
-async def process_name(message: types.Message, state: FSMContext):
+async def delete_task(message: types.Message, state: FSMContext):
     """
     Process task delete id
     """
@@ -235,17 +293,22 @@ def define_priority(priority):
         return f"None ({str(priority)})"
     
 
-async def get_tasks():
+async def get_tasks(task_id):
     """Get all the tasks
 
+    Args:
+        task_id (int): the id of the task
     Returns:
         Task - object: the tasks in a object format
     """
     try:
-        tasks = API.get_tasks()
+        if task_id != "":
+            tasks =   API.get_task(task_id=task_id)
+        else:
+             tasks =  API.get_tasks()
         return tasks
-    except Exception as error:
-        return error
+    except:
+        return False
     
 
 async def delete_messages(start_range,end_range,chat_id):
@@ -263,6 +326,61 @@ async def delete_messages(start_range,end_range,chat_id):
         except:
             return False
     return True    
+
+async def get_all_reminders(user_id):
+    """Get all reminders of the user
+
+    Args:
+        user_id (string): the user id from which the reminders will be retrieved
+
+    Returns:
+        object: json object with the reminders or False if there are no reminders
+    """
+    if os.path.exists("reminders.json"):
+        with open("reminders.json","r") as f:
+            try:
+                data = json.load(f)
+                return data[user_id]
+            except:
+                return False
+    return False
+
+
+async def add_reminders(user_id,dict):
+    """Add reminders to the reminders.json file
+
+    Args:
+        user_id (string): the user id to whom the reminders will be added
+        dict (dictionary): the dictionary  containing the title and due date
+        
+
+    Returns:
+        boolean: True if the reminders were added successfully or False if there was an error
+    """
+    reminder_title = dict.get("title")
+    reminder_date = dict.get("date")
+    if os.path.exists("reminders.json"):
+        with open("reminders.json","r+") as f:
+            try:
+                data = json.load(f)
+            except:
+                data = ""
+            try:
+                if user_id not in data:
+                    new_data = {user_id:{reminder_title:reminder_date}}
+                    data = new_data
+                    f.write(json.dumps(data))
+                    return True
+                else:
+                    data[user_id].update({reminder_title:reminder_date})
+                    # Rewrite the file and r+ doesnt overwrite the file
+                    with open("reminders.json","w") as f:
+                        f.write(json.dumps(data))
+                    return True
+            except:
+                return False
+     
+    return False 
 
 
 if __name__ == '__main__':
