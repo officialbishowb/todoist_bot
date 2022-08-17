@@ -1,7 +1,7 @@
 # Todoist API Bot
 
 ## Description
-
+## This bot will be discontinued for now.
 This bot is based on Todoist Python SDK.
 It can be used to create tasks in Todoist, list them and delete them.
 Beside that it can also be used to enable reminders for those task that have date and time set in Todoist (as todoist offers reminder only for Premium users).
