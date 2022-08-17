@@ -1,6 +1,8 @@
-from glob import escape
+import asyncio
+import multiprocessing
+import datetime
 import json
-from re import A
+from multiprocessing.dummy import Process
 import time
 from dotenv import load_dotenv
 load_dotenv()
@@ -9,7 +11,6 @@ import logging
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
@@ -119,7 +120,9 @@ async def bot_cmd_handler(message: types.Message):
             all_reminders = ""
             num = 0
             for title in user_reminders:
-                all_reminders += f"[{num+1}]: Remind <b>{title}</b> at <b>{user_reminders[title]}</b>\n\n"
+                title = title 
+                date = user_reminders[title].replace("T", " ")
+                all_reminders += f"[{num+1}]: Remind <b>{title}</b> at <b>{date}</b>\n\n"
                 num += 1
             await message.reply(all_reminders)
                 
@@ -383,5 +386,56 @@ async def add_reminders(user_id,dict):
     return False 
 
 
+
+async def remind_user():
+    """The main function that will be called everytime in order to remind the user of the reminders
+    """
+    global current_date, due_date
+    current_date = datetime.datetime.now()
+    while True:
+        if os.path.exists("reminders.json"):
+            with open("reminders.json","r") as f:
+                try:
+                    print("Here data")
+                    datas = json.load(f)
+                except:
+                    print("Here no data")
+                    return False
+
+                for data in datas:
+                    user_reminders = datas[data]
+                    for user_reminder in user_reminders:
+                        user_due_dates = get_date_values(user_reminders[user_reminder])
+                        
+                        current_date = datetime.datetime(current_date.year,current_date.month,current_date.day,current_date.hour,current_date.minute)
+                        due_date = datetime.datetime(user_due_dates[0],user_due_dates[1],user_due_dates[2],user_due_dates[3],user_due_dates[4])
+                        if due_date == current_date:
+                            user_id = int(data)
+                            await bot.send_message(user_id,"<b>❗Reminder❗</b>\n\n"+user_reminder)
+                            return 
+        await asyncio.sleep(40)
+                        
+
+def get_date_values(todoistdate):
+    """Get the year, month, day, hour and minute from the todoistdate
+
+    Args:
+        todoistdate (string): the date from todoist API
+        
+    Returns:
+        tuple: the year, month, day, hour and minute
+        
+    """
+    
+    date_split = todoistdate.split("T")
+    date = date_split[0].split("-")
+    time = date_split[1].split(":")
+    return int(date[0]),int(date[1]),int(date[2]),int(time[0]),int(time[1])
+    
+    
 if __name__ == '__main__':
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    response = loop.run_until_complete(remind_user())
     executor.start_polling(dp, skip_updates=True)
+    
