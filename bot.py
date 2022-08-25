@@ -9,7 +9,7 @@ load_dotenv()
 import os
 import logging
 
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -24,11 +24,14 @@ ACCESS_ID = os.getenv('ACCESS_ID').split(",") # User who can use the bot
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN,parse_mode=types.ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
+
+ 
 ##################################################################### BASIC COMMANDS #####################################################################
 # To handle the basic two commands of this bot
 @dp.message_handler(commands=['start','cmds'])
@@ -388,7 +391,8 @@ async def add_reminders(user_id,dict):
 
 
 async def remind_user():
-    """The main function that will be called everytime in order to remind the user of the reminders
+    """
+    The main function that will be called everytime in order to remind the user of the reminders
     """
     global current_date, due_date
     current_date = datetime.datetime.now()
@@ -396,10 +400,8 @@ async def remind_user():
         if os.path.exists("reminders.json"):
             with open("reminders.json","r") as f:
                 try:
-                    print("Here data")
                     datas = json.load(f)
                 except:
-                    print("Here no data")
                     return False
 
                 for data in datas:
@@ -412,9 +414,36 @@ async def remind_user():
                         if due_date == current_date:
                             user_id = int(data)
                             await bot.send_message(user_id,"<b>❗Reminder❗</b>\n\n"+user_reminder)
+                            await delete_reminder(user_id=str(user_id),reminder_title=user_reminder)
                             return 
-        await asyncio.sleep(40)
-                        
+        await asyncio.sleep(10)
+
+async def delete_reminder(user_id,reminder_title):
+    """Delete a reminder from the reminders.json file
+
+    Args:
+        user_id (string): the user id from which the reminder will be deleted
+        reminder_title (string): the title of the reminder that will be deleted
+
+    Returns:
+        boolean: True if the reminder was deleted successfully or False if there was an error
+    """
+    if os.path.exists("reminders.json"):
+        with open("reminders.json","r") as f:
+            try:
+                datas = json.load(f)
+            except:
+                return False
+            try:
+                del datas[user_id][reminder_title]
+                with open("reminders.json","w") as f:
+                    f.write(json.dumps(datas))
+                return True
+            except Exception as e:
+                return False
+    return False
+
+
 
 def get_date_values(todoistdate):
     """Get the year, month, day, hour and minute from the todoistdate
@@ -432,10 +461,12 @@ def get_date_values(todoistdate):
     time = date_split[1].split(":")
     return int(date[0]),int(date[1]),int(date[2]),int(time[0]),int(time[1])
     
-    
+
+
+
 if __name__ == '__main__':
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    response = loop.run_until_complete(remind_user())
-    executor.start_polling(dp, skip_updates=True)
+    loop = asyncio.get_event_loop()
+    loop.create_task(remind_user())
+    loop.create_task(dp.start_polling())
+    loop.run_forever()
     

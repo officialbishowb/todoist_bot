@@ -1,7 +1,6 @@
 # Todoist API Bot
 
 ## Description
-## This bot will be discontinued for now.
 This bot is based on Todoist Python SDK.
 It can be used to create tasks in Todoist, list them and delete them.
 Beside that it can also be used to enable reminders for those task that have date and time set in Todoist (as todoist offers reminder only for Premium users).
@@ -15,7 +14,7 @@ Set them as environment variables:
 ```env
 TODOIST_TOKEN = <your-todoist-token>
 BOT_TOKEN = <your-telegram-bot-token>
-ACCESS_ID = <telegram-user-ids> (who can use the bot)
+ACCESS_ID = <telegram-user-ids> (who can use the bot separated by comma)
 ```
 
 
@@ -31,7 +30,7 @@ ACCESS_ID = <telegram-user-ids> (who can use the bot)
 
 #### Note
 
-The reminder feature is coming soon.
+If any bugs are found, please report them in the issues section.
 
 ---
 Author - me
